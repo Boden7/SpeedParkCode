@@ -14,9 +14,9 @@ from super_gradients.training.models.detection_models.pp_yolo_e import (
 )
 
 def main():
-    test()
+    test(1)
 
-def test():
+def test(lotID):
     # Specify parameters
     CHECKPOINT_DIR = '\\SpeedParkModel\\check_point'
     EXPERIMENT_NAME = 'SpeedPark'
@@ -60,6 +60,7 @@ def test():
                     max_predictions = 300,
                     nms_threshold = 0.7))))
 
+    # Determine which lot to look at and access the appropriate folder
     # Get the images to test on
     tpaths=[]
     for dirname, _, filenames in os.walk('C:/tempTest'):
@@ -78,6 +79,7 @@ def test():
         not_free_spaces = count.get(1, 0) # 1 = not_free_parking_space
         
         print(f"Image {i+1}: {free_spaces} free, {not_free_spaces} not free")
+    
 
 # Add multiprocessing support to stop freezing errors
 if __name__ == '__main__':
