@@ -1,9 +1,9 @@
 # Author: Boden Kahn
 # CSCI 403: Capstone
 import os
+import random
 import multiprocessing
 from super_gradients.training import Trainer, models
-from super_gradients.training.losses import PPYoloELoss
 from super_gradients.training.metrics import DetectionMetrics_050
 from collections import Counter
 from super_gradients.training.dataloaders.dataloaders import (
@@ -14,9 +14,13 @@ from super_gradients.training.models.detection_models.pp_yolo_e import (
 )
 
 def main():
-    test(1)
+    print(test(1))
 
-def test(lotID):
+# This method calculates the number of free parking spaces based on an image.
+# The lotID parameter is an integer for the id of the desired parking lot and 
+# the return value is an integer containing the number of free spaces in the 
+# image as calculated by our computer vision model
+def test(lotID = 1):
     # Specify parameters
     CHECKPOINT_DIR = '\\SpeedParkModel\\check_point'
     EXPERIMENT_NAME = 'SpeedPark'
@@ -63,22 +67,22 @@ def test(lotID):
     # Determine which lot to look at and access the appropriate folder
     # Get the images to test on
     tpaths=[]
-    for dirname, _, filenames in os.walk('C:/tempTest'):
-        for filename in filenames:
-            tpaths += [(os.path.join(dirname, filename))]
-    print(len(tpaths))
+    imageNumber = random.randint(0, 2)
+    directory = 'C:/tempTest/'
+    directory += str(lotID) + '/'
+    for dirname, _, filenames in os.walk(directory):
+        filename = filenames[imageNumber]
+        tpaths += [(os.path.join(dirname, filename))]
 
-    # Save the results of the predictions from the best model
-    predictions = best_model.predict(tpaths, conf = 0.6)#.show() #.images_predictions.save(output_folder = "C:\\tempTest\Outputs")
+    # Save the results of the prediction from the best model
+    result = best_model.predict(tpaths, conf = 0.6)#.show() #.images_predictions.save(output_folder = "C:\\tempTest\Outputs")
 
-    # Loop over each PredictionResult (one per image)
-    for i, result in enumerate(predictions):
-        labels = result.prediction.labels  # numpy array of class indices
-        count = Counter(labels)
-        free_spaces = count.get(0, 0)  # 0 = free_parking_space
-        not_free_spaces = count.get(1, 0) # 1 = not_free_parking_space
-        
-        print(f"Image {i+1}: {free_spaces} free, {not_free_spaces} not free")
+    labels = result.prediction.labels
+    count = Counter(labels)
+    free_spaces = count.get(0, 0)
+    not_free_spaces = count.get(1, 0) # Currently unused
+
+    return free_spaces
     
 
 # Add multiprocessing support to stop freezing errors
