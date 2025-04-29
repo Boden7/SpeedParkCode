@@ -8,12 +8,13 @@
 # Run the following commands in the terminal before running the program
 # pip install super-gradients
 # pip install --upgrade pillow
-# pip install --upgrade torchvision
 # pip install torch
 # pip install torch torchvision
+# pip install --upgrade torchvision
 
 import os
 import multiprocessing
+from torch import load
 import torch.serialization
 from numpy.core import multiarray
 from numpy import ndarray
@@ -55,12 +56,13 @@ def main():
     CLASSES = ['free_parking_space','not_free_parking_space']
     NUM_CLASSES = len(CLASSES)
 
-    #dataloader params
-    DATALOADER_PARAMS = {'batch_size': 4, 'num_workers': 2}
+    # Dataloader params
+    # num_workers at 8 because pc has 8 cores
+    DATALOADER_PARAMS = {'batch_size': 16, 'num_workers': 8}
 
     # Model params
     MODEL_NAME = 'yolo_nas_l' # choose from yolo_nas_s, yolo_nas_m, yolo_nas_l
-    PRETRAINED_WEIGHTS = None # Switched from "coco" to None to resolve possible networking error.
+    PRETRAINED_WEIGHTS = None # Using pretrained weights from a downloaded model file
     trainer = Trainer(experiment_name = EXPERIMENT_NAME, ckpt_root_dir = CHECKPOINT_DIR)
 
     # Specify data formats
@@ -98,23 +100,42 @@ def main():
     #train_data.dataset.plot()
 
     model = models.get(MODEL_NAME, num_classes = NUM_CLASSES, pretrained_weights = PRETRAINED_WEIGHTS)
+
+    # Manually load the pretrained weights from the yolo_nas_l_coco.pth file
+    checkpoint_path = r"C:\SpeedParkModel\PretrainedWeights\yolo_nas_l_coco.pth"
+    checkpoint = load(checkpoint_path)
+    state_dict = checkpoint['net']
+
+    # Remove the 'cls_pred' weights from the loaded state_dict for all heads
+    for head in ['head1', 'head2', 'head3']:
+        state_dict.pop(f'heads.{head}.cls_pred.weight', None)
+        state_dict.pop(f'heads.{head}.cls_pred.bias', None)
+
+    # Load the state_dict into the model
+    model.load_state_dict(state_dict, strict=False)
+
+    # Replace the classifier layers to match number of classes (2)
+    model.heads.head1.cls_pred = torch.nn.Conv2d(128, 2, kernel_size=1)
+    model.heads.head2.cls_pred = torch.nn.Conv2d(256, 2, kernel_size=1)
+    model.heads.head3.cls_pred = torch.nn.Conv2d(512, 2, kernel_size=1)
                     
     train_params = {
         # ENABLING SILENT MODE
-        "average_best_models":True,
+        "average_best_models": True,
         "warmup_mode": "linear_epoch_step",
-        "warmup_initial_lr": 1e-6,
-        "lr_warmup_epochs": 3,
+        #'batch_accumulate': 2,
+        "warmup_initial_lr": 1e-5,
+        "lr_warmup_epochs": 2,
         "initial_lr": 5e-4,
         "lr_mode": "cosine",
         "cosine_final_lr_ratio": 0.1,
         "optimizer": "AdamW",
         "optimizer_params": {"weight_decay": 0.0001},
         "zero_weight_decay_on_bias_and_bn": True,
-        "ema": True,
+        "ema": False,
         "ema_params": {"decay": 0.9, "decay_type": "threshold"},
-        "max_epochs": 5,
-        "mixed_precision": True, #mixed precision is not available for CPU 
+        "max_epochs": 20,
+        "mixed_precision": False, #mixed precision is not available for CPU 
         "loss": PPYoloELoss(
             use_static_assigner = False,
             num_classes = NUM_CLASSES,
@@ -151,7 +172,7 @@ def main():
     best_model = models.get(MODEL_NAME,
                             num_classes = NUM_CLASSES,
                             # Try it using the best checkpoint from a specific run
-                            checkpoint_path = os.path.abspath("C:\SpeedParkModel\check_point\SpeedPark\RUN_20250415_003553_255063\ckpt_best.pth"))
+                            checkpoint_path = os.path.abspath("C:\SpeedParkModel\check_point\SpeedPark\RUN_20250416_210632_718766\ckpt_best.pth"))
     # Print evaluation results
     print(trainer.test(model = best_model,
                 test_loader = test_data,
