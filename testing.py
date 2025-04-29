@@ -1,85 +1,73 @@
 # Author: Boden Kahn
 # CSCI 403: Capstone
+
 import os
+import random
 import multiprocessing
-from super_gradients.training import Trainer, models
-from super_gradients.training.losses import PPYoloELoss
-from super_gradients.training.metrics import DetectionMetrics_050
+from super_gradients.training import models
+import glob
 from collections import Counter
-from super_gradients.training.dataloaders.dataloaders import (
-    coco_detection_yolo_format_val
-)
-from super_gradients.training.models.detection_models.pp_yolo_e import (
-    PPYoloEPostPredictionCallback
-)
+
+test_mode = True
 
 def main():
-    test(1)
+    print(getSpaceCount(1))
 
-def test(lotID):
+# This method calculates the number of free and taken parking spaces in a 
+# parking lot based on an image. It selects a random image from the folder
+# representing a parking lot, which is named according to the lotID number.
+#
+# Boden Kahn
+# 
+# @param lotID  The id number of the lot to analyze.
+# @return       The a list containing the number of free spaces in the image as
+#               calculated by the machine learning model and the number of 
+#               unavailable spaces as calculated by the model.
+def getSpaceCount(lotID = 1):
     # Specify parameters
-    CHECKPOINT_DIR = '\\SpeedParkModel\\check_point'
-    EXPERIMENT_NAME = 'SpeedPark'
-    DATA_DIR = '/SpeedParkDatasets2' 
-    TEST_IMAGES_DIR = 'test/images'
-    TEST_LABELS_DIR = 'test/labels'
-    MODEL_NAME = 'yolo_nas_l' # choose from yolo_nas_s, yolo_nas_m, yolo_nas_l
-    CLASSES = ['free_parking_space','not_free_parking_space']
+    MODEL_NAME = 'yolo_nas_l'  # choose from yolo_nas_s, yolo_nas_m, yolo_nas_l
+    CLASSES = ['free_parking_space', 'not_free_parking_space']
     NUM_CLASSES = len(CLASSES)
 
-    #dataloader params
-    DATALOADER_PARAMS = {'batch_size': 4, 'num_workers': 2}
-
-    test_data = coco_detection_yolo_format_val(
-            dataset_params = {
-                'data_dir': DATA_DIR,
-                'images_dir': TEST_IMAGES_DIR,
-                'labels_dir': TEST_LABELS_DIR,
-                'classes': CLASSES
-            },
-            dataloader_params = DATALOADER_PARAMS
-        )
-
-    trainer = Trainer(experiment_name = EXPERIMENT_NAME, ckpt_root_dir = CHECKPOINT_DIR)
-
-    # Get the best model from a specific training cycle
+    # Load the model
     best_model = models.get(MODEL_NAME,
                             num_classes = NUM_CLASSES,
-                            checkpoint_path = os.path.abspath("C:\SpeedParkModel\check_point\SpeedPark\RUN_20250416_210632_718766\ckpt_best.pth"))
+                            checkpoint_path = os.path.abspath("C:/SpeedParkModel/check_point/SpeedPark/RUN_20250427_082814_640062/ckpt_best.pth"))# Replace with current best model
 
-    # Print evaluation results
-    print(trainer.test(model = best_model,
-                test_loader = test_data,
-                test_metrics_list = DetectionMetrics_050(score_thres = 0.1, 
-                top_k_predictions = 300, 
-                num_cls = NUM_CLASSES, 
-                normalize_targets = True, 
-                post_prediction_callback = PPYoloEPostPredictionCallback(
-                    score_threshold = 0.01, 
-                    nms_top_k = 1000, 
-                    max_predictions = 300,
-                    nms_threshold = 0.7))))
+    # Find available test images in the lot's folder
+    directory = f"C:/tempTest/{lotID}/"
+    all_images = glob.glob(os.path.join(directory, "**", "*.jpg"), recursive = True)
 
-    # Determine which lot to look at and access the appropriate folder
-    # Get the images to test on
-    tpaths=[]
-    for dirname, _, filenames in os.walk('C:/tempTest'):
-        for filename in filenames:
-            tpaths += [(os.path.join(dirname, filename))]
-    print(len(tpaths))
+    if not all_images:
+        print(f"No images found in {directory}")
+        return -1
 
-    # Save the results of the predictions from the best model
-    predictions = best_model.predict(tpaths, conf = 0.6)#.show() #.images_predictions.save(output_folder = "C:\\tempTest\Outputs")
+    # Pick a random valid image
+    chosen_image = random.choice(all_images)
+    print(f"Selected image: {chosen_image}")
 
-    # Loop over each PredictionResult (one per image)
-    for i, result in enumerate(predictions):
-        labels = result.prediction.labels  # numpy array of class indices
-        count = Counter(labels)
-        free_spaces = count.get(0, 0)  # 0 = free_parking_space
-        not_free_spaces = count.get(1, 0) # 1 = not_free_parking_space
-        
-        print(f"Image {i+1}: {free_spaces} free, {not_free_spaces} not free")
-    
+    # Predict using the model
+    result = best_model.predict(chosen_image, conf = 0.6)
+
+    if not result:  # If no results, exit
+        print("No predictions were made.")
+        return -1
+
+    # Visualize results if in testing mode
+    if(test_mode):
+        result.show()
+
+    # Get the labels from the prediction
+    labels = result.prediction.labels
+
+    # Count occurrences of each label
+    count = Counter(labels)
+    free_spaces = count.get(0, 0)
+    not_free_spaces = count.get(1, 0)
+
+    # Return the number of available and unavailable spaces
+    return [free_spaces, not_free_spaces]
+
 
 # Add multiprocessing support to stop freezing errors
 if __name__ == '__main__':
