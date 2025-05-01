@@ -114,7 +114,7 @@ def getSpaceCount(lotID = 1):
     # Load the model
     best_model = models.get(MODEL_NAME,
                             num_classes = NUM_CLASSES,
-                            checkpoint_path = os.path.abspath("C:/SpeedParkModel/check_point/SpeedPark/RUN_20250427_082814_640062/ckpt_best.pth"))
+                            checkpoint_path = os.path.abspath("C:/SpeedParkModel/check_point/SpeedPark/RUN_20250429_212800_767317/ckpt_best.pth"))
 
     # Find available test images in the lot's folder
     directory = f"C:/tempTest/{lotID}/"
@@ -129,7 +129,7 @@ def getSpaceCount(lotID = 1):
     print(f"Selected image: {chosen_image}")
 
     # Predict using the model
-    result = best_model.predict(chosen_image, conf = 0.6)
+    result = best_model.predict(chosen_image, conf = 0.5)
 
     if not result:  # If no results, exit
         print("No predictions were made.")
